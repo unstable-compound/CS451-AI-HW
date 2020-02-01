@@ -1,5 +1,5 @@
-import itertools
-from queue import PriorityQueue
+
+
 from sys import argv
 import sys
 
@@ -78,7 +78,6 @@ class Problem:
         allowed_moves = allowable_moves_map[blank_index]
         return allowed_moves
 
-
     def goal_test(self, state):
         for i in range(0, len(state)):
             if state[i] is not self.goal[i]:
@@ -94,7 +93,6 @@ def check_parity(s, g):
     # replace 'b' with 9
     start = list(s)
     goal = list(g)
-
 
     inversions_start = 0
     inversions_goal = 0
@@ -140,10 +138,54 @@ def reconstruct_path(cameFrom, current):
     return path_list
 
 
-def new_a_star(problem, hueristic):
-    openSet = set() #frontier
-    closedSet = set() #explored
-    cameFrom = dict() #path
+def best_first(problem, hueristic):
+    openSet = set()  # frontier
+    closedSet = set()  # explored
+    cameFrom = dict()  # path
+
+    fScore = dict()
+
+    start = tuple(problem.initial_state)
+    goal = tuple(problem.goal)
+    openSet.add(start)
+
+    fScore[start] = hueristic(start, goal)
+
+    while len(openSet) != 0:
+        current = getCurrent(openSet, fScore)
+        if problem.goal_test(current):
+            solution = reconstruct_path(cameFrom, current)
+            solution = solution[::-1]
+            return solution
+
+        openSet.remove(current)
+        closedSet.add(current)
+
+        """*****************"""
+        for action in problem.actions(current):
+            child_state = tuple(problem.RESULT(current, action))
+            f_keys = fScore.keys()
+            if child_state not in f_keys:  # fscore are supposed to be default infinity
+                fScore[child_state] = p_infinity
+
+            if child_state not in closedSet and child_state not in openSet:  # discovered a new state
+                openSet.add(child_state)
+            if child_state in closedSet:
+                continue
+
+            ## This path is best so far, so record it
+            cameFrom[child_state] = current
+
+            fScore[child_state] = hueristic(child_state, goal)
+
+    # if end while loop, then openset is empty and we have no solution
+    return None
+
+
+def a_star(problem, hueristic):
+    openSet = set()  # frontier
+    closedSet = set()  # explored
+    cameFrom = dict()  # path
 
     gScore = dict()
     fScore = dict()
@@ -175,7 +217,7 @@ def new_a_star(problem, hueristic):
             if child_state not in g_keys:
                 gScore[child_state] = p_infinity
 
-            if child_state not in closedSet and child_state not in openSet: # discovered a new state
+            if child_state not in closedSet and child_state not in openSet:  # discovered a new state
                 openSet.add(child_state)
             if child_state in closedSet:
                 continue
@@ -196,26 +238,24 @@ def new_a_star(problem, hueristic):
 def puzzle_solve(initial_state_array, goal_state_array, search_algorithm, hueristic):
     if not check_parity(initial_state_array, goal_state_array):
         print("This puzzle is not solvable")
-        return
+        return 0
     problem = Problem(initial_state_array, goal_state_array)
     solution = search_algorithm(problem, hueristic)
     if solution is None:
-        return
+        return 0
     print("The solution, beginning with initial state and progressing to")
     print("the final (goal) state in order of moves taken is:")
+
+    retval = -1
     for item in solution:  # (state, action)
         item_state = item
         sys.stdout.write(str(item_state))
         sys.stdout.write("-->")
+        retval += 1
+        if retval % 4 == 0:
+            print("\n")
 
-       # row_one = item_state[0:3]
-       # row_two = item_state[3:6]
-       # row_three = item_state[6:9]
-       # print(row_one)
-       # print(row_two)
-       # print(row_three)
-
-    # TODO: Finish
+    return retval
 
     '''
     function TREE-SEARCH(problem) returns a solution, or failure
@@ -275,6 +315,73 @@ def get_current(known_items, fScore):  # known_items
     return retval
 
 
+# a node of the search tree needs to have at least:
+# 1. STATE -> the state that this node represents in the
+#       state space.
+# 2. PARENT -> the node in the search tree that generated
+#       this node.
+# 3. ACTION -> the action that was applied to the parent
+#       in order to generate this node
+# 4. PATH-COST -> the cost, traditionally denoted g(n)
+#       of the path from the initial state to the node,
+#       as indicated by the parent "pointers"
+
+
+class SearchNode:
+    def __init__(self, state, parent, action, path_cost, depth):
+        self.state = state
+        self.parent = parent
+        self.action = action
+        self.cost = path_cost
+        self.depth = depth
+
+
+def h_custom(state, goal):
+    return man(state, goal) - 1
+
+
+def man(state, goal_s):
+    goal = list(goal_s)
+    board = list(state)
+    for i in range(0, 9):
+        if goal[i] == 'b':
+            goal[i] = 0
+        if board[i] == 'b':
+            board[i] = 0
+    return sum(abs(b % 3 - g % 3) + abs(b // 3 - g // 3)
+               for b, g in ((board.index(i), goal.index(i)) for i in range(1, 9)))
+
+
+test_puzzles = [
+    # [1, 2, 3, 4, 5, 6, 7, 'b', 8],
+    [1, 2, 3, 4, 5, 6, 'b', 7, 8],
+    [1, 2, 3, 4, 5, 'b', 6, 7, 8],
+    [1, 2, 3, 4, 5, 'b', 7, 8, 6],
+    [3, 4, 1, 5, 2, 'b', 8, 7, 6],
+    [3, 2, 1, 4, 5, 8, 7, 'b', 6],
+    # [8, 4, 3, 5, 1, 2, 6, 7, 'b']
+
+]
+
+if __name__ == '__main__':
+    goal_state = [1, 2, 3, 4, 5, 6, 7, 8, 'b']
+
+    for start_state in test_puzzles:
+        print("Puzzle to solve:")
+        print("Start State:" + str(start_state))
+        print("Goal State:" + str(goal_state))
+
+        print("\nHere is the Best First Search Path:")
+        num_moves = puzzle_solve(start_state, goal_state, best_first, number_misplaced_nodes)
+        print("\nNumber of moves in path: " + str(num_moves) + "\n")
+        print("\nHere is the A* Search Path:")
+        num_moves = puzzle_solve(start_state, goal_state, a_star, number_misplaced_nodes)
+        print("\nNumber of moves in path: " + str(num_moves) + "\n")
+        print("\n********************************************************\n")
+
+    # run greedy_best_first with num_misplaced_tiles_hueristic
+
+"""
 def a_star_search(problem, hueristic):
     map_states_to_nodes = dict()
     # Set of nodes already evaluated
@@ -401,72 +508,9 @@ def greedy_best_first_search(problem, hueristic):
 
     # if we exited loop with no solution
     return None
+"""
 
-
-# a node of the search tree needs to have at least:
-# 1. STATE -> the state that this node represents in the
-#       state space.
-# 2. PARENT -> the node in the search tree that generated
-#       this node.
-# 3. ACTION -> the action that was applied to the parent
-#       in order to generate this node
-# 4. PATH-COST -> the cost, traditionally denoted g(n)
-#       of the path from the initial state to the node,
-#       as indicated by the parent "pointers"
-
-
-class SearchNode:
-    def __init__(self, state, parent, action, path_cost, depth):
-        self.state = state
-        self.parent = parent
-        self.action = action
-        self.cost = path_cost
-        self.depth = depth
-
-
-class PuzzleSolver:
-    def __init__(self, puzzle_array):
-        self.goal_state = [1, 2, 3, 4, 5, 6, 7, 8, 'b']
-        self.puzzle_start = puzzle_array
-        # allowable_moves_map maps each index of the list to its corresponding
-        # allowable moves
-        # INDEX:    TUPLE of ALLOWABLE DIRECTIONS
-        self.allowable_moves_map = {
-            0: ('D', 'R'),
-            1: ('D', 'L', 'R'),
-            2: ('D', 'L'),
-            3: ('U', 'D', 'R'),
-            4: ('U', 'D', 'L', 'R'),
-            5: ('U', 'D', 'R'),
-            6: ('U', 'R'),
-            7: ('U', 'L', 'R'),
-            8: ('U', 'L')
-        }
-        # move_map maps the moves (Left, Right, Up, Down) to the corresponding
-        # action that needs to be taken. [-3 means move the blank space by -3 in the list]
-        self.move_map = {
-            'D': +3,
-            'U': -3,
-            'L': -1,
-            'R': +1
-        }
-
-
-def h_zero(state, goal):
-    return 0
-
-
-def get_next(openSet, fScore):
-    lowest: float = p_infinity
-    retval = None
-    for state in openSet:
-        f = fScore[state]
-        if f < lowest:
-            lowest = f
-            retval = state
-        return retval
-
-
+"""
 def a_star(problem, hueristic):
     openSet = set()
     closedSet = set()
@@ -519,14 +563,4 @@ def a_star(problem, hueristic):
                 fScore[tuple(child.state)] = tent_g_score + hueristic(current.state, child.state)
 
     return None
-
-
-if __name__ == '__main__':
-    if len(argv) > 1:
-        start_state = argv[1]
-    else:
-        start_state = [1, 2, 3, 4, 5, 6, 'b', 7, 8]
-    goal_state = [1, 2, 3, 4, 5, 6, 7, 8, 'b']
-    puzzle_solve(start_state, goal_state, new_a_star, number_misplaced_nodes)
-
-    # run greedy_best_first with num_misplaced_tiles_hueristic
+"""
