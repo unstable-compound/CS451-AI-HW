@@ -51,7 +51,7 @@ def generatePopulation(size):
     return pop
 
 
-maxFitness = 24
+maxFitness = 28
 
 
 def diagonal_clashes(board):
@@ -122,46 +122,34 @@ def sortPopInSelectionOrder(pop):
     return new_pop
 
 
-def get_prob_intervals(pop):
+def get_prob_intervals(pop): # pop needs to come in sorted for this to work
     probs = list()
     # build probability interval
     size = len(pop)
-    lowerbound = 0
-    upperbound = selection[pop[0]]
-
+    previous_probability = 0
     for i in range(0, size):
-        if selection[pop[i]] > upperbound:
-            lowerbound += upperbound
-            upperbound = selection[pop[i]]
-        interval = (lowerbound, upperbound)
+        b = pop[i]
+        p = previous_probability + selection[b]
+        interval = (previous_probability, p)
         probs.append(interval)
-
+        previous_probability = p
     return probs
 
-
-def parentSelection(population):
+def parentSelection(population): #roulette wheel selection method
     # generate random value in [0, 1]
     pop = sortPopInSelectionOrder(population)
     # pop = population
     x = random()
-    lowerbound = 0
-    upperbound = selection[pop[0]]
+    probs = get_prob_intervals(pop)
     size = len(pop)
-    for i in range(0, size):
-        b = pop[i]
-        if i == size - 1:
-            upperbound = 1
-        else:
-            if upperbound < selection[b]:
-                lowerbound = upperbound
-                upperbound = selection[b]
-        if lowerbound <= x < upperbound:
-            # select this board:
-            break
-
-
-    return b
-
+    assert size == len(probs)
+    for j in range(0, size):
+        interval = probs[j]
+        lower = interval[0]
+        upper = interval[1]
+        if x < upper: #then choose this state as a parent
+            return pop[j]
+    assert False #should not reach here
 
 def Reproduce(x, y):
     n = len(x)
@@ -174,7 +162,7 @@ def Reproduce(x, y):
 
 def ChanceMutate():
     x = random()
-    if x > .95:
+    if x > .9:
         return True
     return False
 
@@ -188,10 +176,10 @@ def Mutate(board):
 
 
 def select_best(pop):
-    maxIndex = pop[0]
-    for i in range(1, len(pop)):
-        if fitness[pop[maxIndex]] <= fitness[pop[i]]:
-            maxIndex = pop[i]
+    maxIndex = 0
+    for j in range(1, len(pop)):
+        if fitness[pop[maxIndex]] <= fitness[pop[j]]:
+            maxIndex = j
     return pop[maxIndex]
 
 
@@ -218,16 +206,16 @@ def GeneticAlgorithm(pop, maxIter):
         # pop = sortPopInSelectionOrder(pop)
         counter += 1
     # No solution was found:
-    return None
+    return select_best(pop)
 
 
 selection = dict()
 fitness = dict()
 
 if __name__ == '__main__':
-    Iterations = 1000
+    Iterations = 100
     # generate population
-    PopulationCount = 100
+    PopulationCount = 1000
     population = generatePopulation(PopulationCount)
     buildFitnessFunc(population)
     buildSelectionMap(population, fitness)
@@ -238,7 +226,7 @@ if __name__ == '__main__':
         total += item
     print("Total: " + str(total))
     #########
-    '''
+
     print("Testing building the prob intervals")
     sorted_pop = sortPopInSelectionOrder(population)
     prob_intervals = get_prob_intervals(sorted_pop)
@@ -247,11 +235,16 @@ if __name__ == '__main__':
         print("Fitness: " + str(fitness[sorted_pop[i]]))
         print("Selection Prob: " + str(selection[sorted_pop[i]]))
         print("Interval:" + str(prob_intervals[i]))
-   '''
+
 
     answer = GeneticAlgorithm(population, Iterations)
     if answer is not None:
-        print("The answer: " + str(answer))
+        if calcFitness(answer) == maxFitness:
+            print("The answer: " + str(answer))
+        else:
+            print("No solution was found. Here is the best Solution Generated:")
+            print("Solution: " + str(answer))
+            print("Fitness Level: " + str(calcFitness(answer)) + " out of " + str(maxFitness))
     else:
         print("No answer was found.")
 
