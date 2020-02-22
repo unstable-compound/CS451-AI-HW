@@ -22,14 +22,19 @@ return APPEND(SUBSTRING(x, 1, c), SUBSTRING(y, c + 1, n))
 
 """
 from random import uniform
-from random import random
+from random import random, seed
 from random import randint
+import matplotlib.pyplot as plt
 
 '''
 Board:
 list of 8 ints where the the index+1 is the x value or column
 and where the int value is the y-value or the row.
 '''
+x_axis = list()
+y_axis = list()
+selection = dict()
+fitness = dict()
 
 
 def generateRandomMember():
@@ -122,7 +127,7 @@ def sortPopInSelectionOrder(pop):
     return new_pop
 
 
-def get_prob_intervals(pop): # pop needs to come in sorted for this to work
+def get_prob_intervals(pop):  # pop needs to come in sorted for this to work
     probs = list()
     # build probability interval
     size = len(pop)
@@ -135,7 +140,8 @@ def get_prob_intervals(pop): # pop needs to come in sorted for this to work
         previous_probability = p
     return probs
 
-def parentSelection(population): #roulette wheel selection method
+
+def parentSelection(population):  # roulette wheel selection method
     # generate random value in [0, 1]
     pop = sortPopInSelectionOrder(population)
     # pop = population
@@ -147,9 +153,10 @@ def parentSelection(population): #roulette wheel selection method
         interval = probs[j]
         lower = interval[0]
         upper = interval[1]
-        if x < upper: #then choose this state as a parent
+        if x < upper:  # then choose this state as a parent
             return pop[j]
-    assert False #should not reach here
+    assert False  # should not reach here
+
 
 def Reproduce(x, y):
     n = len(x)
@@ -172,7 +179,7 @@ def Mutate(board):
     gene = randint(0, 7)
     new_value = randint(1, 8)
     new_child[gene] = new_value
-    return tuple(board)
+    return tuple(new_child)
 
 
 def select_best(pop):
@@ -183,9 +190,18 @@ def select_best(pop):
     return pop[maxIndex]
 
 
-def GeneticAlgorithm(pop, maxIter):
-    counter = 0
+def average_fitness(pop):
+    summation = 0
+    for state in pop:
+        summation += fitness[state]
+    return summation / len(pop)
+
+
+def GeneticAlgorithm(p, maxIter):
+    counter = 1
+    pop = list(p)
     while counter <= maxIter:
+        x_axis.append(counter)
         new_population = list()
         size = len(pop)
         while len(new_population) != size:
@@ -195,56 +211,60 @@ def GeneticAlgorithm(pop, maxIter):
             if ChanceMutate():
                 child = Mutate(child)
             # check if already in new_pop
-            #if child not in new_population:
+            # if child not in new_population:
             new_population.append(child)
             # check if solution
             if calcFitness(child) is maxFitness:
-                return child
+                # this is the last population that needs generated
+                counter += maxIter
         pop = new_population
         buildFitnessFunc(pop)
+        y = average_fitness(pop)
+        y_axis.append(y)
         buildSelectionMap(pop, fitness)
         # pop = sortPopInSelectionOrder(pop)
         counter += 1
-    # No solution was found:
-    return select_best(pop)
+    return select_best(pop), pop
 
-
-selection = dict()
-fitness = dict()
 
 if __name__ == '__main__':
-    Iterations = 100
+    seed()
+    Iterations = 500
     # generate population
     PopulationCount = 1000
     population = generatePopulation(PopulationCount)
     buildFitnessFunc(population)
     buildSelectionMap(population, fitness)
     ###########
-    print("Testing that probabilities add up to 1.")
-    total = 0
-    for item in selection.values():
-        total += item
-    print("Total: " + str(total))
-    #########
 
-    print("Testing building the prob intervals")
-    sorted_pop = sortPopInSelectionOrder(population)
-    prob_intervals = get_prob_intervals(sorted_pop)
-    for i in range(0, len(sorted_pop)):
-        print("State:" + str(sorted_pop[i]))
-        print("Fitness: " + str(fitness[sorted_pop[i]]))
-        print("Selection Prob: " + str(selection[sorted_pop[i]]))
-        print("Interval:" + str(prob_intervals[i]))
-
-
-    answer = GeneticAlgorithm(population, Iterations)
+    answer, final_population = GeneticAlgorithm(population, Iterations)
     if answer is not None:
         if calcFitness(answer) == maxFitness:
-            print("The answer: " + str(answer))
+            print("The answer generated: " + str(answer))
         else:
             print("No solution was found. Here is the best Solution Generated:")
             print("Solution: " + str(answer))
             print("Fitness Level: " + str(calcFitness(answer)) + " out of " + str(maxFitness))
+
+        print("Here is a random sample board from the initial population:")
+        r = randint(0, len(population))
+        print("Sequence: " + str(population[r]))
+        score = calcFitness(population[r])
+        print("Score for this State: " + str(score))
+        print("\nHere is a random sample board from the final population:")
+        print("Sequence: " + str(final_population[r]))
+        score = calcFitness(final_population[r])
+        print("Score for this State: " + str(score))
+        # plotting the points
+        plt.plot(x_axis, y_axis)
+        # naming the x axis
+        plt.xlabel('Population Generation Number')
+        # naming the y axis
+        plt.ylabel('Average Fitness of Population')
+        # giving a title to my graph
+        plt.title('Population Size: ' + str(PopulationCount))
+        # function to show the plot
+        plt.show()
     else:
         print("No answer was found.")
 
